@@ -5,9 +5,11 @@
 //! app to load them. We also allocate fixed spaces for each task's
 //! [`KernelStack`] and [`UserStack`].
 
+
 use crate::config::*;
 use crate::trap::TrapContext;
 use core::arch::asm;
+
 
 #[repr(align(4096))]
 #[derive(Copy, Clone)]
@@ -100,4 +102,61 @@ pub fn init_app_cx(app_id: usize) -> usize {
         get_base_i(app_id),
         USER_STACK[app_id].get_sp(),
     ))
+}
+
+pub fn read_current_task_bytes(app_id: usize, addr: usize) -> isize {
+    let base_i = get_base_i(app_id);
+
+    // 栈地址范围
+    let user_sp_base = USER_STACK[app_id].data.as_ptr() as usize;
+    let user_sp_limit = user_sp_base + USER_STACK_SIZE;
+
+    if addr >= user_sp_base && addr < user_sp_limit {
+        println!("[KERNEL] from user stack");
+        let byte = unsafe { (addr as *const u8).read_volatile() };
+        return byte as isize;
+    } else {
+        // 程序 ELF 映射区域
+        let offset = addr - 0x80200000;
+        let addr_kernel = base_i + offset;
+        println!(
+            "[KERNEL] from elf: app_id = {}, addr = {:#x}, kernel_addr = {:#x}",
+            app_id, addr, addr_kernel
+        );
+        let byte = unsafe { (addr_kernel as *const u8).read_volatile() };
+        return byte as isize;
+    }
+}
+
+
+pub fn write_current_task_bytes(app_id: usize, addr: usize, data: usize) -> isize {
+    let base_i = get_base_i(app_id);
+
+    // 栈地址范围
+    let user_sp_base = USER_STACK[app_id].data.as_ptr() as usize;
+    let user_sp_limit = user_sp_base + USER_STACK_SIZE;
+    if addr >= user_sp_base && addr < user_sp_limit {
+        // println!("[KERNEL] write to user stack");
+        let ptr = addr as *mut u8;
+        unsafe {
+            ptr.write_volatile(data as u8);
+        }
+        return 0;
+    } else {
+        // 程序 ELF 映射区域
+        if addr < 0x80200000 || addr >= 0x80200000 + APP_SIZE_LIMIT {
+            return -1;
+        }
+        let offset = addr - 0x80200000;
+        let addr_kernel = base_i + offset;
+        // println!(
+        //     "[KERNEL] write to elf: app_id = {}, addr = {:#x}, kernel_addr = {:#x}",
+        //     app_id, addr, addr_kernel
+        // );
+        let ptr = addr_kernel as *mut u8;
+        unsafe {
+            ptr.write_volatile(data as u8);
+        }
+        return 0;
+    }
 }

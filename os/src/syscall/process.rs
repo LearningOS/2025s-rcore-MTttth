@@ -1,7 +1,8 @@
 //! Process management syscalls
 use crate::{
-    task::{exit_current_and_run_next, suspend_current_and_run_next},
+    task::{exit_current_and_run_next, suspend_current_and_run_next, get_current_task, get_syscall_count},
     timer::get_time_us,
+    loader::{read_current_task_bytes, write_current_task_bytes},
 };
 
 #[repr(C)]
@@ -41,5 +42,36 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 // TODO: implement the syscall
 pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    match _trace_request {
+        0 => {
+            // Handle case where _trace_request is 0
+            trace!("Handling trace request READ");
+            let app_id = get_current_task();
+            let byte = read_current_task_bytes(app_id, _id);
+            byte as isize
+        }
+        1 => {
+            // Handle case where _trace_request is 1
+            trace!("Handling trace request WRITE");
+            let app_id = get_current_task();
+            write_current_task_bytes(app_id, _id, _data);
+            0
+        }
+        2 => {
+            // Handle case where _trace_request is 2
+            trace!("Handling trace request 2");
+            let mut count = get_syscall_count(_id).try_into().unwrap();
+            if _id == 410 {
+                count += 1;
+            }
+            // println!("syscall id is {}, syscall count: {}\n", _id ,count);
+            count
+            
+        }
+        _ => {
+            // Handle all other cases
+            trace!("Unhandled trace request");
+            -1 // Return an error code or default value
+        }
+    }
 }
