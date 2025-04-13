@@ -30,6 +30,7 @@ extern "C" {
 
 lazy_static! {
     /// The kernel's initial memory mapping(kernel address space)
+    /// 在第一次需要用到内核地址空间时，构造出一个带有页表的 MemorySet，并将其包裹进一个可共享、可变的全局变量中，供整个内核使用。
     pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
 }
@@ -223,12 +224,13 @@ impl MemorySet {
     }
     /// Change page table by writing satp CSR Register.
     pub fn activate(&self) {
-        let satp = self.page_table.token();
+        let satp = self.page_table.token();      // 获取页表 token（satp寄存器的值）
         unsafe {
-            satp::write(satp);
-            asm!("sfence.vma");
+            satp::write(satp);                  // 写入 satp 寄存器，切换页表
+            asm!("sfence.vma");                 // 清空 TLB，确保页表切换生效
         }
     }
+    
     /// Translate a virtual page number to a page table entry
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
