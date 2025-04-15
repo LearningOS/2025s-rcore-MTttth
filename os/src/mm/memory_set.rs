@@ -224,13 +224,13 @@ impl MemorySet {
     }
     /// Change page table by writing satp CSR Register.
     pub fn activate(&self) {
-        let satp = self.page_table.token();      // 获取页表 token（satp寄存器的值）
+        let satp = self.page_table.token(); // 获取页表 token（satp寄存器的值）
         unsafe {
-            satp::write(satp);                  // 写入 satp 寄存器，切换页表
-            asm!("sfence.vma");                 // 清空 TLB，确保页表切换生效
+            satp::write(satp); // 写入 satp 寄存器，切换页表
+            asm!("sfence.vma"); // 清空 TLB，确保页表切换生效
         }
     }
-    
+
     /// Translate a virtual page number to a page table entry
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)

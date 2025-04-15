@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -153,6 +154,32 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+    /// Record the syscall number
+    fn record_syscall(&self, syscall_num: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counts[syscall_num] += 1;
+    }
+
+    /// Get the syscall count
+    fn get_syscall_count(&self, syscall_num: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counts[syscall_num]
+    }
+
+    /// Change the current `Running` task's memory set
+    fn change_current_task_memory_set(
+        &self,
+        start_vaddr: VirtAddr,
+        end_vaddr: VirtAddr,
+        flags: MapPermission,
+    ) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+        memory_set.insert_framed_area(start_vaddr, end_vaddr, flags);
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +228,24 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Get current user token
+pub fn get_current_user_token() -> usize {
+    TASK_MANAGER.get_current_token()
+}
+
+/// record the syscall number of current `Running` task.
+pub fn record_syscall(syscall_num: usize) {
+    TASK_MANAGER.record_syscall(syscall_num);
+}
+
+/// Get the syscall count of current `Running` task.
+pub fn get_syscall_count(syscall_num: usize) -> usize {
+    TASK_MANAGER.get_syscall_count(syscall_num)
+}
+
+/// Change the current `Running` task's memory set
+pub fn make_new_map_area(start_vaddr: VirtAddr, end_vaddr: VirtAddr, flags: MapPermission,) {
+    TASK_MANAGER.change_current_task_memory_set(start_vaddr, end_vaddr, flags);
 }

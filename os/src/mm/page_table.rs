@@ -1,6 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum, MapPermission};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -178,4 +178,19 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+/// parse prot:usize to flags
+pub fn parse_prot_to_flags(prot: usize) -> Option<MapPermission> {
+    debug!("prot is {:#x}", prot);
+    if prot & !0x7 != 0 || prot & 0x7 == 0 {
+        return None; // 非法 prot：包含无效位或全为 0
+    }
+
+    let mut flags = MapPermission::U; // 默认用户空间
+    if prot & 0x1 != 0 { flags |= MapPermission::R; }
+    if prot & 0x2 != 0 { flags |= MapPermission::W; }
+    if prot & 0x4 != 0 { flags |= MapPermission::X; }
+
+    Some(flags)
 }

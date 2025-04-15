@@ -34,6 +34,7 @@ impl Debug for FrameTracker {
 
 impl Drop for FrameTracker {
     fn drop(&mut self) {
+        debug!("[drop] FrameTracker dropped for ppn={:#x}", self.ppn.0);
         frame_dealloc(self.ppn);
     }
 }
@@ -66,6 +67,7 @@ impl FrameAllocator for StackFrameAllocator {
         }
     }
     fn alloc(&mut self) -> Option<PhysPageNum> {
+        debug!("[alloc] alloc current is {:#x}, end is {:#x}", self.current, self.end);
         if let Some(ppn) = self.recycled.pop() {
             Some(ppn.into())
         } else if self.current == self.end {
@@ -74,12 +76,14 @@ impl FrameAllocator for StackFrameAllocator {
             self.current += 1;
             Some((self.current - 1).into())
         }
+        
     }
     fn dealloc(&mut self, ppn: PhysPageNum) {
         let ppn = ppn.0;
         // validity check
+        debug!("[dealloc] dealloc ppn={:#x}, current is {:#x}", ppn, self.current);
         if ppn >= self.current || self.recycled.iter().any(|&v| v == ppn) {
-            panic!("Frame ppn={:#x} has not been allocated!", ppn);
+            panic!("[dealloc] Frame ppn={:#x} has not been allocated!", ppn);
         }
         // recycle
         self.recycled.push(ppn);
