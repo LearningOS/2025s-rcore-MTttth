@@ -54,8 +54,8 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     // debug!("vpn is {:?}", vpn);
 
     // 映射为物理地址
-    if let Some(ppn) = page_table.translate(vpn) {
-        let paddr = ppn.ppn().0 << PAGE_SIZE_BITS | vaddr.page_offset(); // 物理地址 = 页基地址 + 页内偏移
+    if let Some(pte) = page_table.translate(vpn) {
+        let paddr = pte.ppn().0 << PAGE_SIZE_BITS | vaddr.page_offset(); // 物理地址 = 页基地址 + 页内偏移
         // debug!("ppn base = 0x{:x}, page_offset = 0x{:x}, paddr = 0x{:x}", ppn.ppn().0, vaddr.page_offset(), paddr);
 
         unsafe {
