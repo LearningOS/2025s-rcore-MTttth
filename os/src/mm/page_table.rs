@@ -1,5 +1,8 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
-use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{
+    frame_alloc, FrameTracker, MapPermission, PhysAddr, PhysPageNum, StepByOne, VirtAddr,
+    VirtPageNum,
+};
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -8,13 +11,21 @@ use bitflags::*;
 bitflags! {
     /// page table entry flags
     pub struct PTEFlags: u8 {
+        /// Valid flag
         const V = 1 << 0;
+        /// Readable flag
         const R = 1 << 1;
+        /// Writable flag
         const W = 1 << 2;
+        /// Executable flag
         const X = 1 << 3;
+        /// User-accessible flag
         const U = 1 << 4;
+        /// Global flag
         const G = 1 << 5;
+        /// Accessed flag
         const A = 1 << 6;
+        /// Dirty flag
         const D = 1 << 7;
     }
 }
@@ -212,4 +223,25 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+
+/// parse prot:usize to flags
+pub fn parse_prot_to_flags(prot: usize) -> Option<MapPermission> {
+    debug!("prot is {:#x}", prot);
+    if prot & !0x7 != 0 || prot & 0x7 == 0 {
+        return None; // 非法 prot：包含无效位或全为 0
+    }
+
+    let mut flags = MapPermission::U; // 默认用户空间
+    if prot & 0x1 != 0 {
+        flags |= MapPermission::R;
+    }
+    if prot & 0x2 != 0 {
+        flags |= MapPermission::W;
+    }
+    if prot & 0x4 != 0 {
+        flags |= MapPermission::X;
+    }
+
+    Some(flags)
 }
