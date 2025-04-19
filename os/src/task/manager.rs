@@ -23,7 +23,23 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue.pop_front()
+        if self.ready_queue.is_empty() {
+            return None;
+        }
+
+        // 找到 stride 最小的任务的 index
+        let mut min_index = 0;
+        let mut min_stride = self.ready_queue[0].inner_exclusive_access().stride; // 提前封装函数获取 stride
+        for (i, task) in self.ready_queue.iter().enumerate() {
+            let stride = task.inner_exclusive_access().stride;
+            if stride < min_stride {
+                min_stride = stride;
+                min_index = i;
+            }
+        }
+
+        // 从 VecDeque 中移除该任务
+        Some(self.ready_queue.remove(min_index).unwrap())
     }
 }
 

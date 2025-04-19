@@ -24,3 +24,6 @@ pub const MEMORY_END: usize = 0x88000000;
 
 /// the initial priority of a task
 pub const INIT_PRIORITY: isize = 16;
+
+/// BigStride of the process
+pub const BIG_STRIDE: usize = 16_777_216; // 2^24

@@ -310,6 +310,7 @@ pub fn sys_set_priority(_prio: isize) -> isize {
     let current_task = current_task().unwrap();
     if _prio >= 2 {
         current_task.inner_exclusive_access().prio = _prio as isize;
+        current_task.inner_exclusive_access().pass = BIG_STRIDE / _prio as usize;
         debug!(
             "[sys_set_priority] pid[{}] set priority to {}",
             current_task.getpid(),

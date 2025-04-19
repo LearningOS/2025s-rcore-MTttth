@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::{TRAP_CONTEXT_BASE, INIT_PRIORITY};
+use crate::config::{TRAP_CONTEXT_BASE, INIT_PRIORITY, BIG_STRIDE};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, MapPermission};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -71,6 +71,12 @@ pub struct TaskControlBlockInner {
 
     /// Priority of the process
     pub prio: isize,
+
+    /// Stride of the process
+    pub stride: usize,
+
+    /// pass
+    pub pass: usize,
 }
 
 impl TaskControlBlockInner {
@@ -132,6 +138,8 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     prio: INIT_PRIORITY,
+                    stride: 0,
+                    pass: BIG_STRIDE / INIT_PRIORITY as usize,
                 })
             },
         };
@@ -177,6 +185,8 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     prio: INIT_PRIORITY,
+                    stride: 0,
+                    pass: BIG_STRIDE / INIT_PRIORITY as usize,
                 })
             },
         });
@@ -253,6 +263,8 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     prio: INIT_PRIORITY,
+                    stride: 0,
+                    pass: BIG_STRIDE / INIT_PRIORITY as usize,
                 })
             },
         });
