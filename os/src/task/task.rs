@@ -2,7 +2,7 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, MapPermission};
 use crate::config::{INIT_PRIORITY, BIG_STRIDE, TRAP_CONTEXT_BASE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -102,6 +102,16 @@ impl TaskControlBlockInner {
             self.fd_table.push(None);
             self.fd_table.len() - 1
         }
+    }
+    /// Change the current `Running` task's memory set
+    pub fn change_current_task_memory_set(
+        &mut self,
+        start_vaddr: VirtAddr,
+        end_vaddr: VirtAddr,
+        flags: MapPermission,
+    ) {
+        let memory_set = &mut self.memory_set;
+        memory_set.insert_framed_area(start_vaddr, end_vaddr, flags);
     }
 }
 
