@@ -1,7 +1,7 @@
 //! Process management syscalls
 //!
 use alloc::sync::Arc;
-
+use crate::config::*;
 use crate::{
     fs::{open_file, OpenFlags},
     mm::{translated_refmut, translated_str},
@@ -157,5 +157,16 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
+    let current_task = current_task().unwrap();
+    if _prio >= 2 {
+        current_task.inner_exclusive_access().prio = _prio as isize;
+        current_task.inner_exclusive_access().pass = BIG_STRIDE / _prio as usize;
+        debug!(
+            "[sys_set_priority] pid[{}] set priority to {}",
+            current_task.getpid(),
+            _prio
+        );
+        return _prio;
+    }
     -1
 }
