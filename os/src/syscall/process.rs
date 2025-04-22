@@ -1,7 +1,7 @@
 //! Process management syscalls
 use crate::task::{change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, get_current_user_token, get_syscall_count, make_new_map_area};
 use crate::timer::get_time_ms;
-use crate::mm::{PageTable, VirtAddr, VirtPageNum, parse_prot_to_flags, SimpleRange, frame_dealloc};
+use crate::mm::{PageTable, VirtAddr, VirtPageNum, parse_prot_to_flags, SimpleRange, translated_byte_buffer};
 use crate::config::*;
 use alloc::vec::Vec;
 pub const USER_VADDR_MAX: usize = (1 << 39) - 1;
@@ -31,45 +31,40 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-
-    // 当前时间
     let ms = get_time_ms();
     let us = ms * 1000;
 
-    // debug!("_ts is {:?}", _ts);
+    let timeval = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
 
-    // 当前用户 token 和页表
-    let token = get_current_user_token();
-    // debug!("token is {:?}", token);
+    // 安全转换为字节数组
+    let src = unsafe {
+        core::slice::from_raw_parts(
+            &timeval as *const _ as *const u8,
+            core::mem::size_of::<TimeVal>(),
+        )
+    };
 
-    let page_table = PageTable::from_token(token);
-
-    // 虚拟地址
-    let vaddr = VirtAddr::from(_ts as usize);
-    // debug!("v_addr is {:?}", vaddr);
-
-    let vpn = VirtPageNum::from(vaddr.floor()); 
-    // debug!("vpn is {:?}", vpn);
-
-    // 映射为物理地址
-    if let Some(pte) = page_table.translate(vpn) {
-        let paddr = pte.ppn().0 << PAGE_SIZE_BITS | vaddr.page_offset(); // 物理地址 = 页基地址 + 页内偏移
-        // debug!("ppn base = 0x{:x}, page_offset = 0x{:x}, paddr = 0x{:x}", ppn.ppn().0, vaddr.page_offset(), paddr);
-
-        unsafe {
-            *(paddr as *mut TimeVal) = TimeVal {
-                sec: (us / 1_000_000) as usize,
-                usec: (us % 1_000_000) as usize,
-            };
-        }
-        0
-    } else {
-        warn!("[sys_get_time] invalid user pointer {:?}", vaddr);
-        -1
+    // 把 src 写入到用户空间的 ts 指针指向的虚拟内存上
+    let mut offset = 0;
+    let buffers = translated_byte_buffer(
+        get_current_user_token(),
+        ts as *const u8,
+        core::mem::size_of::<TimeVal>(),
+    );
+    for buf in buffers {
+        let len = buf.len();
+        buf.copy_from_slice(&src[offset..offset + len]);
+        offset += len;
     }
+
+    0
 }
+
 
 
 /// TODO: Finish sys_trace to pass testcases
@@ -187,7 +182,7 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     let start_vpn = VirtPageNum::from(start_vaddr.floor());
     let end_vpn = VirtAddr::from(end_vaddr).ceil();
     let vpn_range = SimpleRange::new(start_vpn, end_vpn);
-    debug!("[sys_mmap] start_vaddr is {:#x}, end_vaddr is {:#x}, start_vpn is {:#x}, end_vpn is {:#x}, length is {:?}", start_vaddr.0, end_vaddr.0, start_vpn.0, end_vpn.0, _len);
+    // debug!("[sys_mmap] start_vaddr is {:#x}, end_vaddr is {:#x}, start_vpn is {:#x}, end_vpn is {:#x}, length is {:?}", start_vaddr.0, end_vaddr.0, start_vpn.0, end_vpn.0, _len);
 
     let flags = match parse_prot_to_flags(_port) {
         Some(f) => f,
@@ -236,7 +231,7 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     let start_vpn = VirtPageNum::from(start_vaddr.floor());
     let end_vpn = VirtAddr::from(end_vaddr).ceil();
     let vpn_range = SimpleRange::new(start_vpn, end_vpn);
-    debug!("[sys_munmap] start_vaddr is {:#x}, end_vaddr is {:#x}, start_vpn is {:#x}, end_vpn is {:#x}, length is {:?}", start_vaddr.0, end_vaddr.0, start_vpn.0, end_vpn.0, _len);
+    // debug!("[sys_munmap] start_vaddr is {:#x}, end_vaddr is {:#x}, start_vpn is {:#x}, end_vpn is {:#x}, length is {:?}", start_vaddr.0, end_vaddr.0, start_vpn.0, end_vpn.0, _len);
 
     match start_vaddr.aligned() {
         true => {}
@@ -273,12 +268,8 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     }
 
     // 现在再进行 unmap
-    for (vpn, pte) in pte_list {
-        debug!("[sys_munmap]--------------- drop vpn is {:#x}", vpn.0);
-        debug!("[sys_munmap]--------------- drop ppn is {:#x}", pte.ppn().0);
-        frame_dealloc(pte.ppn());
+    for (vpn, _) in pte_list {
         page_table.unmap(vpn);
-        debug!("[sys_munmap]--------------- drop pte is {:#x}", pte.ppn().0);
     }
 
     return 0;
