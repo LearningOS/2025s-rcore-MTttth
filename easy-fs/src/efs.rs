@@ -148,4 +148,8 @@ impl EasyFileSystem {
             (block_id - self.data_area_start_block) as usize,
         )
     }
+    /// get inode_area_start_block
+    pub fn inode_area_start_block(&self) -> usize {
+        self.inode_area_start_block as usize
+    }
 }

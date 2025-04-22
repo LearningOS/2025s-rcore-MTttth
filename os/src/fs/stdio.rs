@@ -39,6 +39,19 @@ impl File for Stdin {
     fn write(&self, _user_buf: UserBuffer) -> usize {
         panic!("Cannot write to stdin!");
     }
+    fn stat(&self) -> super::Stat {
+        super::Stat {
+            dev: 0,
+            ino: 0,
+            mode: super::StatMode::FILE,
+            nlink: 1,
+            pad: [0; 7],
+        }
+    }
+    fn get_inode_id(&self) -> usize {
+        0
+    }
+    
 }
 
 impl File for Stdout {
@@ -57,4 +70,17 @@ impl File for Stdout {
         }
         user_buf.len()
     }
+    fn stat(&self) -> super::Stat {
+        super::Stat {
+            dev: 0,
+            ino: 1,
+            mode: super::StatMode::FILE,
+            nlink: 1,
+            pad: [0; 7],
+        }
+    }
+    fn get_inode_id(&self) -> usize {
+        1
+    }
 }
+    

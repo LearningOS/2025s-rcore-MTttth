@@ -15,12 +15,16 @@ pub trait File: Send + Sync {
     fn read(&self, buf: UserBuffer) -> usize;
     /// write to the file from buf, return the number of bytes written
     fn write(&self, buf: UserBuffer) -> usize;
+    /// file stat
+    fn stat(&self) -> Stat;
+    /// get_inode_id 
+    fn get_inode_id(&self) -> usize;
 }
 
 /// The stat of a inode
 #[repr(C)]
 #[derive(Debug)]
-pub struct Stat {
+pub struct  Stat {
     /// ID of device containing file
     pub dev: u64,
     /// inode number
