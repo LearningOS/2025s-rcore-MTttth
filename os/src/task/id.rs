@@ -166,7 +166,7 @@ impl TaskUserRes {
     pub fn alloc_user_res(&self) {
         let process = self.process.upgrade().unwrap();
         let mut process_inner = process.inner_exclusive_access();
-        // alloc user stack
+        // alloc user stackpid
         let ustack_bottom = ustack_bottom_from_tid(self.ustack_base, self.tid);
         let ustack_top = ustack_bottom + USER_STACK_SIZE;
         process_inner.memory_set.insert_framed_area(

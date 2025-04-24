@@ -7,7 +7,7 @@ use super::{add_task, SignalFlags};
 use super::{pid_alloc, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{translated_refmut, MemorySet, KERNEL_SPACE};
-use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell};
+use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell, Banker};
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::String;
 use alloc::sync::{Arc, Weak};
@@ -21,6 +21,9 @@ pub struct ProcessControlBlock {
     pub pid: PidHandle,
     /// mutable
     inner: UPSafeCell<ProcessControlBlockInner>,
+    /// banker
+    /// banker
+    pub banker: UPSafeCell<Banker>,
 }
 
 /// Inner of Process Control Block
@@ -29,7 +32,7 @@ pub struct ProcessControlBlockInner {
     pub is_zombie: bool,
     /// memory set(address space)
     pub memory_set: MemorySet,
-    /// parent process
+    /// parent processt
     pub parent: Option<Weak<ProcessControlBlock>>,
     /// children process
     pub children: Vec<Arc<ProcessControlBlock>>,
@@ -49,6 +52,8 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// enable deadlock detect
+    pub enable_deadlock_detect: bool,
 }
 
 impl ProcessControlBlockInner {
@@ -89,6 +94,10 @@ impl ProcessControlBlock {
     pub fn inner_exclusive_access(&self) -> RefMut<'_, ProcessControlBlockInner> {
         self.inner.exclusive_access()
     }
+    /// banker_exclusive_access
+    pub fn banker_exclusive_access(&self) -> RefMut<'_, Banker> {
+        self.banker.exclusive_access()
+    }
     /// new process from elf file
     pub fn new(elf_data: &[u8]) -> Arc<Self> {
         trace!("kernel: ProcessControlBlock::new");
@@ -98,6 +107,7 @@ impl ProcessControlBlock {
         let pid_handle = pid_alloc();
         let process = Arc::new(Self {
             pid: pid_handle,
+            banker: unsafe { UPSafeCell::new(Banker::new()) },
             inner: unsafe {
                 UPSafeCell::new(ProcessControlBlockInner {
                     is_zombie: false,
@@ -119,6 +129,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect: false,
                 })
             },
         });
@@ -231,6 +242,7 @@ impl ProcessControlBlock {
         // create child process pcb
         let child = Arc::new(Self {
             pid,
+            banker: unsafe { UPSafeCell::new(Banker::new()) },
             inner: unsafe {
                 UPSafeCell::new(ProcessControlBlockInner {
                     is_zombie: false,
@@ -245,6 +257,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect: false,
                 })
             },
         });

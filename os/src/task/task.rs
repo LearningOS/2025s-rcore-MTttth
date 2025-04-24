@@ -65,6 +65,10 @@ impl TaskControlBlock {
         let trap_cx_ppn = res.trap_cx_ppn();
         let kstack = kstack_alloc();
         let kstack_top = kstack.get_top();
+        let tid = res.tid;
+        let mut banker = process.banker_exclusive_access();
+        banker.register_thread(tid);
+        drop(banker);
         Self {
             process: Arc::downgrade(&process),
             kstack,
